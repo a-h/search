@@ -80,17 +80,20 @@ usage: search [<args>] directory
 search .
 ```
 
+
 ## Find text in all .go files
 
 ```
 search -names *.go -text github.com/a-h .
 ```
 
+
 ## Find directories called `search`
 
 ```
 search -names search -files=false .
 ```
+
 
 ## Find directories that start with `s`
 
