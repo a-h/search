@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/a-h/search/contains"
@@ -81,9 +82,10 @@ func main() {
 
 	var summary searcher.Summary
 
+	var wg sync.WaitGroup
 	paths := make(chan string)
 	errors := make(chan error)
-	done := make(chan bool)
+	wg.Add(1)
 	go func() {
 		var err error
 		summary, err = s.Walk(ctx, wd, paths, errors)
@@ -92,24 +94,25 @@ func main() {
 		}
 		close(paths)
 		close(errors)
+		wg.Done()
 	}()
 
+	wg.Add(1)
 	go func() {
 		for path := range paths {
 			fmt.Fprintln(os.Stdout, path)
 		}
-		done <- true
+		wg.Done()
 	}()
 
+	wg.Add(1)
 	go func() {
 		for err := range errors {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 		}
-		done <- true
+		wg.Done()
 	}()
-	for i := 0; i < 2; i++ {
-		<-done
-	}
+	wg.Wait()
 	if *flagPrintSummary {
 		fmt.Fprintln(os.Stdout, summary.String())
 	}
