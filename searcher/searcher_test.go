@@ -23,20 +23,20 @@ func TestSearcher(t *testing.T) {
 		walkFn("/root/sub/file2.txt", file, nil)
 		return nil
 	}
-	matchAll := func(path string, isDir bool) (matched bool, bytesRead int64, err error) {
+	matchAll := func(ctx context.Context, path string, isDir bool) (matched bool, bytesRead int64, err error) {
 		return true, 10, nil
 	}
-	matchNone := func(path string, isDir bool) (matched bool, bytesRead int64, err error) {
+	matchNone := func(ctx context.Context, path string, isDir bool) (matched bool, bytesRead int64, err error) {
 		return false, 10, nil
 	}
 	var errMatching = errors.New("error matching")
-	matchError := func(path string, isDir bool) (matched bool, bytesRead int64, err error) {
+	matchError := func(ctx context.Context, path string, isDir bool) (matched bool, bytesRead int64, err error) {
 		return false, 10, errMatching
 	}
 	tests := []struct {
 		name           string
 		walker         func(root string, walkFn filepath.WalkFunc) error
-		matcher        func(path string, isDir bool) (matched bool, bytesRead int64, err error)
+		matcher        func(ctx context.Context, path string, isDir bool) (matched bool, bytesRead int64, err error)
 		expected       []string
 		expectedErrors []error
 	}{
@@ -222,7 +222,7 @@ func TestMatcher(t *testing.T) {
 			name: "text search can be carried out positively",
 			settings: Settings{
 				IncludeFiles: true,
-				TextSearch: func(name, text string) (ok bool, bytesRead int64, err error) {
+				TextSearch: func(ctx context.Context, name, text string) (ok bool, bytesRead int64, err error) {
 					return true, 10, nil
 				},
 				IncludeText: "test",
@@ -235,7 +235,7 @@ func TestMatcher(t *testing.T) {
 			name: "text search can be carried out negatively",
 			settings: Settings{
 				IncludeFiles: true,
-				TextSearch: func(name, text string) (ok bool, bytesRead int64, err error) {
+				TextSearch: func(ctx context.Context, name, text string) (ok bool, bytesRead int64, err error) {
 					return false, 0, nil
 				},
 				IncludeText: "test",
@@ -259,7 +259,7 @@ func TestMatcher(t *testing.T) {
 			name: "text search errors are returned",
 			settings: Settings{
 				IncludeFiles: true,
-				TextSearch: func(name, text string) (ok bool, bytesRead int64, err error) {
+				TextSearch: func(ctx context.Context, name, text string) (ok bool, bytesRead int64, err error) {
 					return false, 10, errors.New("failure")
 				},
 				IncludeText: "test",
@@ -331,9 +331,9 @@ func TestMatcher(t *testing.T) {
 				Settings: test.settings,
 			}
 			for _, pi := range test.previousInputs {
-				m.isMatch(pi.path, pi.isDir)
+				m.isMatch(context.Background(), pi.path, pi.isDir)
 			}
-			actual, _, actualErr := m.isMatch(test.inputPath, test.isDir)
+			actual, _, actualErr := m.isMatch(context.Background(), test.inputPath, test.isDir)
 			if !reflect.DeepEqual(actualErr, test.expectedErr) {
 				t.Fatalf("expected error '%v', got '%v'", test.expectedErr, actualErr)
 			}

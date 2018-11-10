@@ -3,29 +3,37 @@ package contains
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"strings"
 )
 
 // TextInFile checks whether a file contains the text.
-func TextInFile(name, text string) (ok bool, bytesRead int64, err error) {
+func TextInFile(ctx context.Context, name, text string) (ok bool, bytesRead int64, err error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return
 	}
 	defer f.Close()
-	return TextInReader(f, text)
+	return TextInReader(ctx, f, text)
 }
 
 // TextInReader checks whether a reader contains the text.
-func TextInReader(f io.Reader, text string) (ok bool, bytesRead int64, err error) {
+func TextInReader(ctx context.Context, f io.Reader, text string) (ok bool, bytesRead int64, err error) {
 	reader := bufio.NewReader(f)
 	var buffer bytes.Buffer
 	for {
 		var l []byte
 		var isPrefix bool
 		for {
+			select {
+			case <-ctx.Done():
+				// Quit early.
+				return
+			default:
+				// Continue.
+			}
 			l, isPrefix, err = reader.ReadLine()
 			if err != nil && err != io.EOF {
 				return

@@ -1,5 +1,7 @@
 package searcher
 
+import "context"
+
 // Settings for the searcher.
 type Settings struct {
 	IncludeNames       []string
@@ -8,5 +10,5 @@ type Settings struct {
 	IncludeFiles       bool
 	IncludeText        string
 	ExcludeText        string
-	TextSearch         func(name, text string) (ok bool, bytesRead int64, err error)
+	TextSearch         func(ctx context.Context, name, text string) (ok bool, bytesRead int64, err error)
 }

@@ -3,6 +3,7 @@ package searcher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -25,13 +26,16 @@ var ErrCancelled = errors.New("search cancelled early")
 // Searcher searches through files.
 type Searcher struct {
 	Walker  func(root string, walkFn filepath.WalkFunc) error
-	Matcher func(path string, isDir bool) (matched bool, bytesRead int64, err error)
+	Matcher func(ctx context.Context, path string, isDir bool) (matched bool, bytesRead int64, err error)
 }
 
 // Walk the directory specified in the settings.
 func (s Searcher) Walk(ctx context.Context, directory string, paths chan string, errors chan error) (summary Summary, err error) {
 	start := time.Now()
 	searcher := func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return fmt.Errorf("cannot search: %v", err)
+		}
 		select {
 		case <-ctx.Done():
 			return ErrCancelled
@@ -44,7 +48,7 @@ func (s Searcher) Walk(ctx context.Context, directory string, paths chan string,
 		} else {
 			summary.Files++
 		}
-		matched, read, err := s.Matcher(path, isDir)
+		matched, read, err := s.Matcher(ctx, path, isDir)
 		summary.BytesRead += read
 		if err != nil {
 			errors <- err
