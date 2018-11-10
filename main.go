@@ -19,7 +19,6 @@ var flagExcludeNames = flag.String("exclude-names", ".git", "path names to exclu
 var flagIncludeDirectories = flag.Bool("directories", true, "set to true to include directories")
 var flagIncludeFiles = flag.Bool("files", true, "set to true to include files")
 var flagIncludeText = flag.String("text", "", "text to search for")
-var flagExcludeText = flag.String("exclude-text", "", "text to search for")
 var flagPrintSettings = flag.Bool("print-settings", true, "prints out the settings before searching")
 var flagPrintSummary = flag.Bool("print-summary", true, "prints out a summary after searching")
 
@@ -51,7 +50,6 @@ func main() {
 		IncludeDirectories: *flagIncludeDirectories,
 		IncludeFiles:       *flagIncludeFiles,
 		IncludeText:        *flagIncludeText,
-		ExcludeText:        *flagExcludeText,
 	}
 
 	if *flagPrintSettings {
@@ -61,7 +59,6 @@ func main() {
 		fmt.Fprintf(os.Stdout, "%s: %v\n", "Include Directories", ss.IncludeDirectories)
 		fmt.Fprintf(os.Stdout, "%s: %v\n", "Include Files", ss.IncludeFiles)
 		fmt.Fprintf(os.Stdout, "%s: %v\n", "Include Text", ss.IncludeText)
-		fmt.Fprintf(os.Stdout, "%s: %v\n", "Exclude Text", ss.ExcludeText)
 	}
 
 	// Cancel if a signal if received.
