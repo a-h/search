@@ -9,10 +9,16 @@ import (
 
 // Summary of activity.
 type Summary struct {
+	StartTime   time.Time
+	EndTime     time.Time
 	Directories int
 	Files       int
 	BytesRead   int64
-	TimeTaken   time.Duration
+}
+
+// TimeTaken by the operation.
+func (s Summary) TimeTaken() time.Duration {
+	return s.EndTime.Sub(s.StartTime)
 }
 
 func (s Summary) String() string {
@@ -21,10 +27,10 @@ func (s Summary) String() string {
 			s.Directories,
 			s.Files,
 			bytefmt.ByteSize(uint64(s.BytesRead)),
-			s.TimeTaken)
+			s.TimeTaken())
 	}
 	return fmt.Sprintf("Visited %d directories and %d files in %v",
 		s.Directories,
 		s.Files,
-		s.TimeTaken)
+		s.TimeTaken())
 }

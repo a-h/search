@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 )
@@ -23,27 +24,32 @@ func TestSearcher(t *testing.T) {
 		walkFn("/root/sub/file2.txt", file, nil)
 		return nil
 	}
-	matchAll := func(ctx context.Context, path string, isDir bool) (matched bool, bytesRead int64, err error) {
-		return true, 10, nil
+	matchAll := func(ctx context.Context, path string, isDir bool) (matched bool, err error) {
+		return true, nil
 	}
-	matchNone := func(ctx context.Context, path string, isDir bool) (matched bool, bytesRead int64, err error) {
-		return false, 10, nil
+	matchNone := func(ctx context.Context, path string, isDir bool) (matched bool, err error) {
+		return false, nil
 	}
 	var errMatching = errors.New("error matching")
-	matchError := func(ctx context.Context, path string, isDir bool) (matched bool, bytesRead int64, err error) {
-		return false, 10, errMatching
+	matchError := func(ctx context.Context, path string, isDir bool) (matched bool, err error) {
+		return false, errMatching
+	}
+	matchAllContent := func(ctx context.Context, path string, text string) (matched bool, bytesRead int64, err error) {
+		return true, 10, nil
 	}
 	tests := []struct {
 		name           string
 		walker         func(root string, walkFn filepath.WalkFunc) error
-		matcher        func(ctx context.Context, path string, isDir bool) (matched bool, bytesRead int64, err error)
+		settings       Settings
+		pathMatcher    func(ctx context.Context, path string, isDir bool) (matched bool, err error)
+		contentMatcher func(ctx context.Context, path string, text string) (matched bool, bytesRead int64, err error)
 		expected       []string
 		expectedErrors []error
 	}{
 		{
-			name:    "if we match everything, we get all the paths",
-			walker:  walker,
-			matcher: matchAll,
+			name:        "if we match everything, we get all the paths",
+			walker:      walker,
+			pathMatcher: matchAll,
 			expected: []string{
 				"/root/file1.txt",
 				"/root/sub",
@@ -51,15 +57,28 @@ func TestSearcher(t *testing.T) {
 			},
 		},
 		{
-			name:     "if we match nothing, we get nothing",
-			walker:   walker,
-			matcher:  matchNone,
-			expected: nil,
+			name:   "a text match can be successful",
+			walker: walker,
+			settings: Settings{
+				IncludeText: "test",
+			},
+			pathMatcher:    matchAll,
+			contentMatcher: matchAllContent,
+			expected: []string{
+				"/root/file1.txt",
+				"/root/sub/file2.txt",
+			},
+		},
+		{
+			name:        "if we match nothing, we get nothing",
+			walker:      walker,
+			pathMatcher: matchNone,
+			expected:    nil,
 		},
 		{
 			name:           "if the matcher errors, we receive it",
 			walker:         walker,
-			matcher:        matchError,
+			pathMatcher:    matchError,
 			expected:       nil,
 			expectedErrors: []error{errMatching, errMatching, errMatching},
 		},
@@ -67,39 +86,41 @@ func TestSearcher(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			s := Searcher{
-				Matcher: tc.matcher,
-				Walker:  tc.walker,
+				PathMatcher:    tc.pathMatcher,
+				ContentMatcher: tc.contentMatcher,
+				Walker:         tc.walker,
+				Settings:       tc.settings,
 			}
-			done := make(chan bool)
+			var wg sync.WaitGroup
 			pc := make(chan string)
 			errc := make(chan error)
+			wg.Add(1)
 			go func() {
 				var err error
 				s.Walk(context.Background(), "/", pc, errc)
 				if err != nil && err != ErrCancelled {
 					t.Errorf("failed to walk: %v", err)
 				}
-				close(pc)
-				close(errc)
+				wg.Done()
 			}()
 
 			var paths []string
+			wg.Add(1)
 			go func() {
 				for p := range pc {
 					paths = append(paths, p)
 				}
-				done <- true
+				wg.Done()
 			}()
 			var errors []error
+			wg.Add(1)
 			go func() {
 				for err := range errc {
 					errors = append(errors, err)
 				}
-				done <- true
+				wg.Done()
 			}()
-			for i := 0; i < 2; i++ {
-				<-done
-			}
+			wg.Wait()
 			if !reflect.DeepEqual(tc.expected, paths) {
 				t.Errorf("expected paths: %v, got %v", tc.expected, paths)
 			}
@@ -141,7 +162,7 @@ func (fi fileInfo) Sys() interface{} {
 	return true
 }
 
-func TestMatcher(t *testing.T) {
+func TestMatcherPaths(t *testing.T) {
 	type previousInput struct {
 		path  string
 		isDir bool
@@ -219,32 +240,6 @@ func TestMatcher(t *testing.T) {
 			expected:  true,
 		},
 		{
-			name: "text search can be carried out positively",
-			settings: Settings{
-				IncludeFiles: true,
-				TextSearch: func(ctx context.Context, name, text string) (ok bool, bytesRead int64, err error) {
-					return true, 10, nil
-				},
-				IncludeText: "test",
-			},
-			inputPath: "/code/hello.txt",
-			isDir:     false,
-			expected:  true,
-		},
-		{
-			name: "text search can be carried out negatively",
-			settings: Settings{
-				IncludeFiles: true,
-				TextSearch: func(ctx context.Context, name, text string) (ok bool, bytesRead int64, err error) {
-					return false, 0, nil
-				},
-				IncludeText: "test",
-			},
-			inputPath: "/code/hello.txt",
-			isDir:     false,
-			expected:  false,
-		},
-		{
 			name: "directories can't match text",
 			settings: Settings{
 				IncludeFiles:       true,
@@ -254,20 +249,6 @@ func TestMatcher(t *testing.T) {
 			inputPath: "/code",
 			isDir:     true,
 			expected:  false,
-		},
-		{
-			name: "text search errors are returned",
-			settings: Settings{
-				IncludeFiles: true,
-				TextSearch: func(ctx context.Context, name, text string) (ok bool, bytesRead int64, err error) {
-					return false, 10, errors.New("failure")
-				},
-				IncludeText: "test",
-			},
-			inputPath:   "/code/hello.txt",
-			isDir:       false,
-			expected:    false,
-			expectedErr: errors.New("/code/hello.txt: failure"),
 		},
 		{
 			name: "find a directory by name",
@@ -331,9 +312,9 @@ func TestMatcher(t *testing.T) {
 				Settings: test.settings,
 			}
 			for _, pi := range test.previousInputs {
-				m.isMatch(context.Background(), pi.path, pi.isDir)
+				m.isPathMatch(context.Background(), pi.path, pi.isDir)
 			}
-			actual, _, actualErr := m.isMatch(context.Background(), test.inputPath, test.isDir)
+			actual, actualErr := m.isPathMatch(context.Background(), test.inputPath, test.isDir)
 			if !reflect.DeepEqual(actualErr, test.expectedErr) {
 				t.Fatalf("expected error '%v', got '%v'", test.expectedErr, actualErr)
 			}

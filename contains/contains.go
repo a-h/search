@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -11,12 +12,17 @@ import (
 
 // TextInFile checks whether a file contains the text.
 func TextInFile(ctx context.Context, name, text string) (ok bool, bytesRead int64, err error) {
-	f, err := os.Open(name)
-	if err != nil {
+	f, fErr := os.Open(name)
+	if fErr != nil {
+		err = fmt.Errorf("%v: %v", name, fErr)
 		return
 	}
 	defer f.Close()
-	return TextInReader(ctx, f, text)
+	ok, bytesRead, err = TextInReader(ctx, f, text)
+	if err != nil {
+		err = fmt.Errorf("%v: %v", name, err)
+	}
+	return
 }
 
 // TextInReader checks whether a reader contains the text.

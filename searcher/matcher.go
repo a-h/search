@@ -2,7 +2,6 @@ package searcher
 
 import (
 	"context"
-	"fmt"
 	"path"
 	"strings"
 )
@@ -12,8 +11,8 @@ type matcher struct {
 	bannedPaths []string
 }
 
-// IsMatch determines whether the file / path matches the settings.
-func (m *matcher) isMatch(ctx context.Context, path string, isDir bool) (matched bool, bytesRead int64, err error) {
+// isPathMatch determines whether the file / path matches the settings.
+func (m *matcher) isPathMatch(ctx context.Context, path string, isDir bool) (matched bool, err error) {
 	for _, bp := range m.bannedPaths {
 		if strings.HasPrefix(path, bp) {
 			return
@@ -38,19 +37,8 @@ func (m *matcher) isMatch(ctx context.Context, path string, isDir bool) (matched
 			return
 		}
 	}
-	if len(m.Settings.IncludeText) > 0 && isDir {
+	if m.Settings.IsContentSearch() && isDir {
 		return
-	}
-	if len(m.Settings.IncludeText) > 0 && !isDir {
-		ok, r, tErr := m.Settings.TextSearch(ctx, path, m.Settings.IncludeText)
-		if tErr != nil {
-			err = fmt.Errorf("%v: %v", path, tErr)
-			return
-		}
-		bytesRead = r
-		if !ok {
-			return
-		}
 	}
 	matched = true
 	return

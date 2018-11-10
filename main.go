@@ -11,8 +11,6 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/a-h/search/contains"
-
 	"github.com/a-h/search/searcher"
 )
 
@@ -54,7 +52,6 @@ func main() {
 		IncludeFiles:       *flagIncludeFiles,
 		IncludeText:        *flagIncludeText,
 		ExcludeText:        *flagExcludeText,
-		TextSearch:         contains.TextInFile,
 	}
 
 	if *flagPrintSettings {
@@ -79,12 +76,14 @@ func main() {
 	defer cancel()
 
 	s := searcher.New(ss)
-
 	var summary searcher.Summary
 
-	var wg sync.WaitGroup
+	// Create the output channels.
 	paths := make(chan string)
 	errors := make(chan error)
+
+	// Receive data from the channels.
+	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		var err error
@@ -92,8 +91,6 @@ func main() {
 		if err != nil && err != searcher.ErrCancelled {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		}
-		close(paths)
-		close(errors)
 		wg.Done()
 	}()
 
