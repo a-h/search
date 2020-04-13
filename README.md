@@ -86,6 +86,13 @@ search .
 search -names *.go -text github.com/a-h .
 ```
 
+```
+grep -l -r github.com/a-h --include=*.go .
+# -l list files only (no surrounding context)
+# -r recursive
+# --include only includes paths which match the pattern
+```
+
 ## Find directories called `search`
 
 ```
